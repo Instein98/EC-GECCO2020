@@ -13,16 +13,26 @@ def DERand1(population, baseIdx, probMatrix, F):
 
 # todo: bitwise recalculate
 def FEPMutator(individual, idx, eta, newEta, benchmark):
+    maxTryTimes = 10
+    tryTimes = 0
     dim = len(individual)
-    solutionValid = False
-    while not solutionValid:
-        randCauchy = np.random.standard_cauchy(dim)
-        mutant = individual + eta[idx] * randCauchy
-        solutionValid = True
-        for j in range(len(mutant)):
-            if mutant[j] < benchmark.get_lbound(j) or mutant[j] > benchmark.get_ubound(j):
-                solutionValid = False
+    mutant = np.zeros(dim)
+    for i in range(dim):
+        solutionValid = False
+        while not solutionValid:
+            tryTimes += 1
+            if tryTimes > maxTryTimes:
+                # mutant[i] = individual[i]  # keep consistent
+                # mutant[i] = benchmark.get_lbound(i) + random.random() * \
+                #     (benchmark.get_ubound(i) - benchmark.get_lbound(i))  # set random
+                mutant[i] = benchmark.get_lbound(i) \
+                    if mutant[i] < benchmark.get_lbound(i) else benchmark.get_ubound(i)  # set bound
                 break
+            randCauchy = np.random.standard_cauchy()
+            mutant[i] = individual[i] + eta[idx][i] * randCauchy
+            solutionValid = True
+            if mutant[i] < benchmark.get_lbound(i) or mutant[i] > benchmark.get_ubound(i):
+                solutionValid = False
     # update eta
     randNormal = np.random.standard_normal()
     newEta[idx] = eta[idx] * np.exp(1/np.sqrt(2*dim) * np.array([randNormal for _ in range(dim)]) +

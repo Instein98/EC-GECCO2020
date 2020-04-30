@@ -84,6 +84,4 @@ def getEuclideanDistance(vec1, vec2):
 
 
 if __name__ == '__main__':
-    benchmark = Benchmark("./Benchmarks/dj38.tsp")
-    print(benchmark.data)
-    print(len(set([1,2,3,3])))
+    pass

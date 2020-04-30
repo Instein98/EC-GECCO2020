@@ -42,7 +42,7 @@ class EA:
 class ExperimentalNichingEA(EA):
     def __init__(self,
                  benchmark=CEC2013(1),
-                 maxEval=MAX_EVALUATION,
+                 maxEval=None,
                  populationSize=POPULATION_SIZE,
                  ):
         super(ExperimentalNichingEA, self).__init__(benchmark, maxEval, populationSize)
@@ -138,7 +138,7 @@ class ExperimentalNichingEA(EA):
 class FastEP(EA):
     def __init__(self,
                  benchmark=CEC2013(1),
-                 maxEval=MAX_EVALUATION,
+                 maxEval=None,
                  populationSize=POPULATION_SIZE,
                  ):
         super(FastEP, self).__init__(benchmark, maxEval, populationSize)
@@ -187,7 +187,7 @@ class FastNichingEP(EA):
                  benchmark=CEC2013(1),
                  maxEval=None,
                  populationSize=POPULATION_SIZE,
-                 evolutionTimes=20,
+                 evolutionTimes=None,
                  nicheRadius=None
                  ):
         self.benchmark = benchmark
@@ -197,8 +197,8 @@ class FastNichingEP(EA):
         self.population = None
         self.fitness = None
 
-        self.maxEvaluation //= evolutionTimes  # divide the totalEvaluation into groups
-        self.evolutionTimes = evolutionTimes
+        self.evolutionTimes = evolutionTimes if evolutionTimes is not None else populationSize//2
+        self.maxEvaluation //= self.evolutionTimes  # divide the totalEvaluation into groups
         self.peakIndividuals = []
         self.eta = None
         if nicheRadius is None:
@@ -211,7 +211,7 @@ class FastNichingEP(EA):
         else:
             self.nicheRadius = nicheRadius
         self.resultPopulation = np.ndarray((0, self.dim))
-        self.nichePopulationSize = self.populationSize // evolutionTimes  # todo: or just select the best one
+        self.nichePopulationSize = 1
         self.worstFitness = None
 
     def getFitness(self, population):
@@ -277,4 +277,73 @@ class FastNichingEP(EA):
             self.resultPopulation = np.concatenate((self.resultPopulation, self.population[:self.nichePopulationSize]))
             print("current niche population: " + str(self.population[:self.nichePopulationSize]))
             print("self.resultPopulation: " + str(self.resultPopulation))
+
+
+class FitnessSharingFEP(EA):
+
+    def __init__(self,
+                 benchmark=CEC2013(1),
+                 maxEval=None,
+                 populationSize=POPULATION_SIZE,
+                 ):
+        super(FitnessSharingFEP, self).__init__(benchmark, maxEval, populationSize)
+        self.eta = np.ones((self.populationSize, self.dim))
+        self.alpha = 1
+        self.shareDist = 1
+        self.beta = 2
+
+    def getSharedFitness(self, population, fitness, newPopulation, newFitness):
+        populationAll = np.concatenate((population, newPopulation))
+        fitnessAll = np.concatenate((fitness, newFitness))
+        for i, individual_i in enumerate(populationAll):
+            sh_sum = 0
+            for j, individual_j in enumerate(populationAll):
+                if i != j:
+                    dist = getEuclideanDistance(individual_i, individual_j)
+                    sh_ij = 1 - (dist/self.shareDist)**self.alpha if dist < self.shareDist else 0
+                    sh_sum += sh_ij
+            fitnessAll[i] /= sh_sum
+            # if i < len(fitness):
+            #     fitness[i] /= sh_sum
+            # else:
+            #     newFitness[i-len(fitness)] /= sh_sum
+        fitness = fitnessAll[:len(fitness)]
+        newFitness = fitnessAll[len(fitness):]
+        return fitness, newFitness
+
+    def run(self):
+        iterationCount = 0
+        totalEvaluationTimes = 0
+
+        while True:
+
+            # print message
+            iterationCount += 1
+            if iterationCount % 2 == 0:
+                print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
+                print("current population:\n" + str(self.population))
+
+            # evaluation
+            if self.fitness is None:
+                self.fitness, evaluationTimes = self.getFitness(self.population)
+                totalEvaluationTimes += evaluationTimes
+                if totalEvaluationTimes > self.maxEvaluation:
+                    break
+
+            # mutation
+            newEta = np.zeros((self.populationSize, self.dim))
+            newPopulation = np.zeros((self.populationSize, self.dim))
+            for i, individual in enumerate(self.population):
+                mutant = FEPMutator(individual, i, self.eta, newEta, self.benchmark)
+                newPopulation[i] = mutant
+
+            # replacement
+            newFitness, evaluationTimes = self.getFitness(newPopulation)
+            totalEvaluationTimes += evaluationTimes
+            if totalEvaluationTimes > self.maxEvaluation:
+                break
+            fitness, newFitness = self.getSharedFitness(self.population, self.fitness, newPopulation, newFitness)
+            self.population = roundRobinTournament(self.population, newPopulation,
+                                                   self.fitness, newFitness, self.eta, newEta)
+        self.resultPopulation = self.population
 
