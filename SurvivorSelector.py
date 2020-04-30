@@ -59,9 +59,10 @@ def clusterSelector(population, fitness, newPopulation, newFitness, affinityMatr
     return populationAll, fitnessAll, affinityMatrixAll
 
 
-def roundRobinTournament(population, newPopulation, fitness, newFitness, q=10):
-    populationAll = np.concatenate(population, newPopulation)
-    fitnessAll = np.concatenate(fitness, newFitness)
+def roundRobinTournament(population, newPopulation, fitness, newFitness, eta, newEta, q=10):
+    populationAll = np.concatenate((population, newPopulation))
+    fitnessAll = np.concatenate((fitness, newFitness))
+    etaAll = np.concatenate((eta, newEta))
     winTable = []
     for i, individual in enumerate(populationAll):
         winTimes = 0
@@ -80,4 +81,5 @@ def roundRobinTournament(population, newPopulation, fitness, newFitness, q=10):
     for i in range(len(winTable)):
         fitness[i] = fitnessAll[winTable[i][0]]
         population[i] = populationAll[winTable[i][0]]
+        eta[i] = etaAll[winTable[i][0]]
     return population

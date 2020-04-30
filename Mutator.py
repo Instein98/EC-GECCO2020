@@ -11,11 +11,12 @@ def DERand1(population, baseIdx, probMatrix, F):
     return population[baseIdx] + F * (population[idx1] - population[idx2])
 
 
-def FEPMutator(individual, eta, benchmark):
+def FEPMutator(individual, idx, eta, newEta, benchmark):
+    dim = len(individual)
     solutionValid = False
     while not solutionValid:
-        randCauchy = np.random.standard_cauchy(len(eta))
-        mutant = individual + eta * randCauchy
+        randCauchy = np.random.standard_cauchy(dim)
+        mutant = individual + eta[idx] * randCauchy
         solutionValid = True
         for j in range(len(mutant)):
             if mutant[j] < benchmark.get_lbound(j) or mutant[j] > benchmark.get_ubound(j):
@@ -23,7 +24,7 @@ def FEPMutator(individual, eta, benchmark):
                 break
     # update eta
     randNormal = np.random.standard_normal()
-    eta *= np.exp(1/np.sqrt(2*len(eta)) * np.array([randNormal for _ in range(len(eta))]) +
-                  1/np.sqrt(2*np.sqrt(len(eta))) * np.random.standard_normal(len(eta)))
+    newEta[idx] = eta[idx] * np.exp(1/np.sqrt(2*dim) * np.array([randNormal for _ in range(dim)]) +
+                                    1/np.sqrt(2*np.sqrt(dim)) * np.random.standard_normal(dim))
     return mutant
 

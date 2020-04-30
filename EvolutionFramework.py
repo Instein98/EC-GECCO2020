@@ -151,7 +151,7 @@ class FastEP(EA):
 
             # print message
             iterationCount += 1
-            if iterationCount % 50 == 0:
+            if iterationCount % 2 == 0:
                 print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
                 print("current population:\n" + str(self.population))
 
@@ -163,9 +163,10 @@ class FastEP(EA):
                     break
 
             # mutation
+            newEta = np.zeros((self.populationSize, self.dim))
             newPopulation = np.zeros((self.populationSize, self.dim))
             for i, individual in enumerate(self.population):
-                mutant = FEPMutator(individual, self.eta[i], self.benchmark)
+                mutant = FEPMutator(individual, i, self.eta, newEta, self.benchmark)
                 newPopulation[i] = mutant
 
             # replacement
@@ -173,6 +174,5 @@ class FastEP(EA):
             totalEvaluationTimes += evaluationTimes
             if totalEvaluationTimes > self.maxEvaluation:
                 break
-            self.population = roundRobinTournament(self.population, newPopulation, self.fitness, newFitness)
-
-        # self.finalPopulation = self.population
+            self.population = roundRobinTournament(self.population, newPopulation,
+                                                   self.fitness, newFitness, self.eta, newEta)
