@@ -33,31 +33,15 @@ def clusterSelector(population, fitness, newPopulation, newFitness, affinityMatr
         rand = random.random()
         if rand < C:
             # # remove the nearest
-            # tmp = np.where(affinityMatrixAll == np.amin(affinityMatrixAll))
-            # candidateIdx1 = tmp[0][0]
-            # candidateIdx2 = tmp[1][0]
-            # removeIdx = candidateIdx2 if fitnessAll[candidateIdx1] > fitnessAll[candidateIdx2] else candidateIdx1
-            # affinityMatrixAll = np.delete(affinityMatrixAll, removeIdx, 0)
-            # affinityMatrixAll = np.delete(affinityMatrixAll, removeIdx, 1)
-            # populationAll = np.delete(populationAll, removeIdx, 0)
-            # fitnessAll = np.delete(fitnessAll, removeIdx, 0)
-
-            # remove by flat
-            removeIdx = random.randint(0, len(fitnessAll)-1)
+            tmp = np.where(affinityMatrixAll == np.amin(affinityMatrixAll))
+            candidateIdx1 = tmp[0][0]
+            candidateIdx2 = tmp[1][0]
+            removeIdx = candidateIdx2 if fitnessAll[candidateIdx1] > fitnessAll[candidateIdx2] else candidateIdx1
             affinityMatrixAll = np.delete(affinityMatrixAll, removeIdx, 0)
             affinityMatrixAll = np.delete(affinityMatrixAll, removeIdx, 1)
             populationAll = np.delete(populationAll, removeIdx, 0)
             fitnessAll = np.delete(fitnessAll, removeIdx, 0)
         else:
-            # # remove by rouletteWheel
-            # fitnessSum = sum(fitnessAll)
-            # probList = [(1 - fitnessAll[i]/fitnessSum)/(len(fitnessAll)-1) for i in range(len(fitnessAll))]
-            # removeIdx = rouletteWheelWithProbList(probList)
-            # affinityMatrixAll = np.delete(affinityMatrixAll, removeIdx, 0)
-            # affinityMatrixAll = np.delete(affinityMatrixAll, removeIdx, 1)
-            # populationAll = np.delete(populationAll, removeIdx, 0)
-            # fitnessAll = np.delete(fitnessAll, removeIdx, 0)
-
             # remove by rank based selection
             individualNum = len(fitnessAll)
             tmp = [(i, fitnessAll[i]) for i in range(individualNum)]
@@ -74,3 +58,26 @@ def clusterSelector(population, fitness, newPopulation, newFitness, affinityMatr
 
     return populationAll, fitnessAll, affinityMatrixAll
 
+
+def roundRobinTournament(population, newPopulation, fitness, newFitness, q=10):
+    populationAll = np.concatenate(population, newPopulation)
+    fitnessAll = np.concatenate(fitness, newFitness)
+    winTable = []
+    for i, individual in enumerate(populationAll):
+        winTimes = 0
+        rivalIdxList = []  # store rival individuals
+        while len(rivalIdxList) < q:
+            idx = int(random.random() * len(populationAll))
+            while idx in rivalIdxList:
+                idx = int(random.random() * len(populationAll))
+            rivalIdxList.append(idx)
+        for rivalIdx in rivalIdxList:
+            if fitnessAll[i] > fitnessAll[rivalIdx]:
+                winTimes += 1
+        winTable.append([i, winTimes])  # idx, winTimes
+    winTable.sort(key=lambda x: x[1], reverse=True)  # decreasing
+    winTable = winTable[:len(population)]
+    for i in range(len(winTable)):
+        fitness[i] = fitnessAll[winTable[i][0]]
+        population[i] = populationAll[winTable[i][0]]
+    return population

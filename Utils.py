@@ -78,14 +78,6 @@ def rouletteWheelWithProbList(probList):
         if rand < p:
             return i
 
-def getFitness(population, benchmark):
-    fitness = np.zeros(len(population))
-    evaluationTimes = 0
-    for i in range(len(population)):
-        fitness[i] = benchmark.evaluate(population[i])
-        evaluationTimes += 1
-    return fitness, evaluationTimes
-
 
 if __name__ == '__main__':
     benchmark = Benchmark("./Benchmarks/dj38.tsp")
