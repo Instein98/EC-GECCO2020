@@ -3,6 +3,7 @@ from SurvivorSelector import *
 from Configuration import *
 from Crossover import *
 from cec2013.cec2013 import *
+import time
 
 
 class EA:
@@ -18,6 +19,7 @@ class EA:
         self.population = self.getInitialPopulation()
         self.fitness = None
         self.resultPopulation = None
+        self.startTime = None
 
     def getInitialPopulation(self):
         population = np.zeros((self.populationSize, self.dim))  # population matrix
@@ -39,18 +41,16 @@ class EA:
         return fitness, evaluationTimes
 
 
-class ExperimentalNichingEA(EA):
+class ProDE_Rand1(EA):
     def __init__(self,
                  benchmark=CEC2013(1),
                  maxEval=None,
                  populationSize=POPULATION_SIZE,
                  ):
-        super(ExperimentalNichingEA, self).__init__(benchmark, maxEval, populationSize)
+        super(ProDE_Rand1, self).__init__(benchmark, maxEval, populationSize)
         self.affinityMatrix = self.initAffinityMatrix()
-        self.probMatrix = self.updateProbMatrix()
-        self.F = F_INITIAL
-        self.C = C_INITIAL
-        # self.finalPopulation = None
+        self.probMatrix = self.calculateProbMatrix()
+        self.F = 1
 
     def initAffinityMatrix(self):
         affinityMatrix = np.zeros((self.populationSize, self.populationSize))
@@ -61,12 +61,24 @@ class ExperimentalNichingEA(EA):
                 else:
                     vec1 = self.population[i]
                     vec2 = self.population[j]
-                    euclideanDist = np.sqrt(np.sum((vec1 - vec2) ** 2))
+                    euclideanDist = getEuclideanDistance(vec2, vec1)
                     affinityMatrix[i][j] = euclideanDist
                     affinityMatrix[j][i] = euclideanDist
         return affinityMatrix
 
-    def updateProbMatrix(self):
+    def updateAffinityMatrix(self, idxList):
+        for idx in idxList:
+            for j in range(self.populationSize):
+                if idx == j:
+                    self.affinityMatrix[idx][j] = float("inf")
+                else:
+                    vec1 = self.population[idx]
+                    vec2 = self.population[j]
+                    euclideanDist = getEuclideanDistance(vec2, vec1)
+                    self.affinityMatrix[idx][j] = euclideanDist
+                    self.affinityMatrix[j][idx] = euclideanDist
+
+    def calculateProbMatrix(self):
         probMatrix = np.zeros((self.populationSize, self.populationSize))
         for i in range(self.populationSize):
             denominator = np.sum(self.affinityMatrix[i])
@@ -82,32 +94,26 @@ class ExperimentalNichingEA(EA):
     def run(self):
         iterationCount = 0
         totalEvaluationTimes = 0
-        evaluationRunOut = False
 
-        while not evaluationRunOut:
+        while True:
 
             # print message
             iterationCount += 1
             if iterationCount % 50 == 0:
                 print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
-                print("F = %f" % self.F)
-                print("C = %f" % self.C)
                 print("current population:\n" + str(self.population))
 
-            self.F = F_INITIAL - (F_INITIAL - F_LBOUND) * (totalEvaluationTimes/self.maxEvaluation)
-            self.C = C_INITIAL - (C_INITIAL - C_LBOUND) * (totalEvaluationTimes/self.maxEvaluation)
 
-            # evaluation todo: only update the changed individuals
+            # evaluation
             if self.fitness is None:
                 self.fitness, evaluationTimes = self.getFitness(self.population)
                 totalEvaluationTimes += evaluationTimes
                 if totalEvaluationTimes > self.maxEvaluation:
-                    evaluationRunOut = True
                     break
 
-            # mutation & crossover
-            newPopulation = np.zeros((LAMBDA, self.dim))
-            for i in range(LAMBDA):
+            # mutation & crossover & replacement
+            replacedIdxList = []
+            for i in range(len(self.population)):
                 solutionValid = False
                 while not solutionValid:
                     solutionValid = True
@@ -121,17 +127,19 @@ class ExperimentalNichingEA(EA):
                         if mutant[j] < self.benchmark.get_lbound(j) or mutant[j] > self.benchmark.get_ubound(j):
                             solutionValid = False
                             break
-                newPopulation[i] = mutant
+                # replacement
+                mutantFitness = self.benchmark.evaluate(mutant)
+                if mutantFitness > self.fitness[i]:
+                    self.population[i] = mutant
+                    self.fitness[i] = mutantFitness
+                    replacedIdxList.append(i)
 
-            # replacement
-            newFitness, evaluationTimes = self.getFitness(newPopulation)
-            totalEvaluationTimes += evaluationTimes
+            # update all the things
+            totalEvaluationTimes += len(self.population)
             if totalEvaluationTimes > self.maxEvaluation:
-                evaluationRunOut = True
                 break
-            self.population, self.fitness, self.affinityMatrix = \
-                clusterSelector(self.population, self.fitness, newPopulation, newFitness, self.affinityMatrix, self.C)
-            self.updateProbMatrix()
+            self.updateAffinityMatrix(replacedIdxList)
+            self.probMatrix = self.calculateProbMatrix()
         self.resultPopulation = self.population
 
 
@@ -233,7 +241,6 @@ class FastNichingEP(EA):
         return fitness, evaluationTimes
 
     def run(self):
-
         for x in range(self.evolutionTimes):
             print("*"*15 + " Finding Niche " + str(x+1) + " " + "*"*15)
 
@@ -347,3 +354,111 @@ class FitnessSharingFEP(EA):
                                                    self.fitness, newFitness, self.eta, newEta)
         self.resultPopulation = self.population
 
+
+# used to get entry files
+class FastNichingEP_record(EA):
+
+    def __init__(self,
+                 benchmark=CEC2013(1),
+                 maxEval=None,
+                 populationSize=POPULATION_SIZE,
+                 evolutionTimes=None,
+                 nicheRadius=None
+                 ):
+        self.benchmark = benchmark
+        self.maxEvaluation = benchmark.get_maxfes() if maxEval is None else maxEval
+        self.populationSize = populationSize  # total size
+        self.dim = benchmark.get_dimension()
+        self.population = None
+        self.fitness = None
+
+        self.evolutionTimes = evolutionTimes if evolutionTimes is not None else populationSize//2
+        self.maxEvaluation //= self.evolutionTimes  # divide the totalEvaluation into groups
+        self.peakIndividuals = []
+        self.eta = None
+        if nicheRadius is None:
+            upperBoundVector = np.zeros(self.dim)
+            lowerBoundVector = np.zeros(self.dim)
+            for k in range(self.dim):
+                upperBoundVector[k] = benchmark.get_ubound(k)
+                lowerBoundVector[k] = benchmark.get_lbound(k)
+            self.nicheRadius = getEuclideanDistance(upperBoundVector, lowerBoundVector) / 20
+        else:
+            self.nicheRadius = nicheRadius
+        self.resultPopulation = np.ndarray((0, self.dim))
+        self.nichePopulationSize = 1
+        self.worstFitness = None
+        self.archive = []
+        self.currentPopulationInfo = []
+        self.newPopulationInfo = []  # (vector = fitness @ fes time)
+
+    def getFitness(self, population):
+        # skipTimes = 0  # when all niches have been found, used to terminate
+        fitness = np.zeros(len(population))
+        evaluationTimes = 0
+        for i in range(len(population)):
+            inFoundNiche = False
+            for j in range(len(self.resultPopulation)):
+                if getEuclideanDistance(population[i], self.resultPopulation[j]) < self.nicheRadius:
+                    fitness[i] = self.worstFitness
+                    inFoundNiche = True
+                    evaluationTimes += 1
+                    # skipTimes += 1
+                    break
+            if not inFoundNiche:
+                fitness[i] = self.benchmark.evaluate(population[i])
+                evaluationTimes += 1
+        return fitness, evaluationTimes
+
+    def run(self):
+        self.startTime = time.time()
+
+        for x in range(self.evolutionTimes):
+            print("*"*15 + " Finding Niche " + str(x+1) + " " + "*"*15)
+
+            self.population = self.getInitialPopulation()
+            self.fitness = None
+            self.eta = np.ones((self.populationSize, self.dim))
+            iterationCount = 0
+            totalEvaluationTimes = 0
+
+            while True:
+
+                # print message
+                iterationCount += 1
+                if iterationCount % 10 == 0:
+                    print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
+                    # print("current population:\n" + str(self.population))
+
+                # evaluation
+                if self.fitness is None:
+                    self.fitness, evaluationTimes = self.getFitness(self.population)
+                    if x == 0:
+                        self.worstFitness = np.min(self.fitness)
+                    totalEvaluationTimes += evaluationTimes
+                    if totalEvaluationTimes > self.maxEvaluation:
+                        break
+
+                # # record
+                # self.currentPopulationInfo = []
+                # for i, individual in enumerate(self.population):
+                #     self.currentPopulationInfo.append((individual, self.fitness[i], self.maxEvaluation *
+                #                                        x + totalEvaluationTimes, time.time() - self.startTime))
+
+                # mutation
+                newEta = np.zeros((self.populationSize, self.dim))
+                newPopulation = np.zeros((self.populationSize, self.dim))
+                for i, individual in enumerate(self.population):
+                    mutant = FEPMutator(individual, i, self.eta, newEta, self.benchmark)
+                    newPopulation[i] = mutant
+
+                # replacement
+                newFitness, evaluationTimes = self.getFitness(newPopulation)
+                totalEvaluationTimes += evaluationTimes
+                if totalEvaluationTimes > self.maxEvaluation:
+                    break
+                self.population = roundRobinTournament(self.population, newPopulation,
+                                                       self.fitness, newFitness, self.eta, newEta)
+            self.resultPopulation = np.concatenate((self.resultPopulation, self.population[:self.nichePopulationSize]))
+            print("current niche population: " + str(self.population[:self.nichePopulationSize]))
+            print("self.resultPopulation: " + str(self.resultPopulation))
