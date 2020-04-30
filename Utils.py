@@ -79,6 +79,10 @@ def rouletteWheelWithProbList(probList):
             return i
 
 
+def getEuclideanDistance(vec1, vec2):
+    return np.sqrt(np.sum((vec1 - vec2) ** 2))
+
+
 if __name__ == '__main__':
     benchmark = Benchmark("./Benchmarks/dj38.tsp")
     print(benchmark.data)

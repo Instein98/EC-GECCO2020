@@ -8,15 +8,16 @@ from cec2013.cec2013 import *
 class EA:
     def __init__(self,
                  benchmark=CEC2013(1),
-                 maxEval=MAX_EVALUATION,
+                 maxEval=None,
                  populationSize = POPULATION_SIZE,
                  ):
         self.benchmark = benchmark
-        self.maxEvaluation = maxEval
+        self.maxEvaluation = benchmark.get_maxfes() if maxEval is None else maxEval
         self.populationSize = populationSize
         self.dim = benchmark.get_dimension()
         self.population = self.getInitialPopulation()
         self.fitness = None
+        self.resultPopulation = None
 
     def getInitialPopulation(self):
         population = np.zeros((self.populationSize, self.dim))  # population matrix
@@ -131,7 +132,7 @@ class ExperimentalNichingEA(EA):
             self.population, self.fitness, self.affinityMatrix = \
                 clusterSelector(self.population, self.fitness, newPopulation, newFitness, self.affinityMatrix, self.C)
             self.updateProbMatrix()
-        # self.finalPopulation = self.population
+        self.resultPopulation = self.population
 
 
 class FastEP(EA):
@@ -163,6 +164,7 @@ class FastEP(EA):
                     break
 
             # mutation
+            print("mutating")
             newEta = np.zeros((self.populationSize, self.dim))
             newPopulation = np.zeros((self.populationSize, self.dim))
             for i, individual in enumerate(self.population):
@@ -176,3 +178,103 @@ class FastEP(EA):
                 break
             self.population = roundRobinTournament(self.population, newPopulation,
                                                    self.fitness, newFitness, self.eta, newEta)
+        self.resultPopulation = self.population
+
+
+class FastNichingEP(EA):
+
+    def __init__(self,
+                 benchmark=CEC2013(1),
+                 maxEval=None,
+                 populationSize=POPULATION_SIZE,
+                 evolutionTimes=20,
+                 nicheRadius=None
+                 ):
+        self.benchmark = benchmark
+        self.maxEvaluation = benchmark.get_maxfes() if maxEval is None else maxEval
+        self.populationSize = populationSize  # total size
+        self.dim = benchmark.get_dimension()
+        self.population = None
+        self.fitness = None
+
+        self.maxEvaluation //= evolutionTimes  # divide the totalEvaluation into groups
+        self.evolutionTimes = evolutionTimes
+        self.peakIndividuals = []
+        self.eta = None
+        if nicheRadius is None:
+            upperBoundVector = np.zeros(self.dim)
+            lowerBoundVector = np.zeros(self.dim)
+            for k in range(self.dim):
+                upperBoundVector[k] = benchmark.get_ubound(k)
+                lowerBoundVector[k] = benchmark.get_lbound(k)
+            self.nicheRadius = getEuclideanDistance(upperBoundVector, lowerBoundVector) / 20
+        else:
+            self.nicheRadius = nicheRadius
+        self.resultPopulation = np.ndarray((0, self.dim))
+        self.nichePopulationSize = self.populationSize // evolutionTimes  # todo: or just select the best one
+        self.worstFitness = None
+
+    def getFitness(self, population):
+        # skipTimes = 0  # when all niches have been found, used to terminate
+        fitness = np.zeros(len(population))
+        evaluationTimes = 0
+        for i in range(len(population)):
+            inFoundNiche = False
+            for j in range(len(self.resultPopulation)):
+                if getEuclideanDistance(population[i], self.resultPopulation[j]) < self.nicheRadius:
+                    fitness[i] = self.worstFitness
+                    inFoundNiche = True
+                    evaluationTimes += 1
+                    # skipTimes += 1
+                    break
+            if not inFoundNiche:
+                fitness[i] = self.benchmark.evaluate(population[i])
+                evaluationTimes += 1
+        return fitness, evaluationTimes
+
+    def run(self):
+
+        for x in range(self.evolutionTimes):
+            print("*"*15 + " Finding Niche " + str(x+1) + " " + "*"*15)
+
+            self.population = self.getInitialPopulation()
+            self.fitness = None
+            self.eta = np.ones((self.populationSize, self.dim))
+            iterationCount = 0
+            totalEvaluationTimes = 0
+
+            while True:
+
+                # print message
+                iterationCount += 1
+                if iterationCount % 10 == 0:
+                    print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
+                    # print("current population:\n" + str(self.population))
+
+                # evaluation
+                if self.fitness is None:
+                    self.fitness, evaluationTimes = self.getFitness(self.population)
+                    if x == 0:
+                        self.worstFitness = np.min(self.fitness)
+                    totalEvaluationTimes += evaluationTimes
+                    if totalEvaluationTimes > self.maxEvaluation:
+                        break
+
+                # mutation
+                newEta = np.zeros((self.populationSize, self.dim))
+                newPopulation = np.zeros((self.populationSize, self.dim))
+                for i, individual in enumerate(self.population):
+                    mutant = FEPMutator(individual, i, self.eta, newEta, self.benchmark)
+                    newPopulation[i] = mutant
+
+                # replacement
+                newFitness, evaluationTimes = self.getFitness(newPopulation)
+                totalEvaluationTimes += evaluationTimes
+                if totalEvaluationTimes > self.maxEvaluation:
+                    break
+                self.population = roundRobinTournament(self.population, newPopulation,
+                                                       self.fitness, newFitness, self.eta, newEta)
+            self.resultPopulation = np.concatenate((self.resultPopulation, self.population[:self.nichePopulationSize]))
+            print("current niche population: " + str(self.population[:self.nichePopulationSize]))
+            print("self.resultPopulation: " + str(self.resultPopulation))
+

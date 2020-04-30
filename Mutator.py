@@ -11,6 +11,7 @@ def DERand1(population, baseIdx, probMatrix, F):
     return population[baseIdx] + F * (population[idx1] - population[idx2])
 
 
+# todo: bitwise recalculate
 def FEPMutator(individual, idx, eta, newEta, benchmark):
     dim = len(individual)
     solutionValid = False
