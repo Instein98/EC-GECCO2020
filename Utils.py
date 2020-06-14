@@ -1,6 +1,8 @@
 import math
 import numpy as np
 import random
+import statistics
+
 
 class Individual:
     def __init__(self, vector):
@@ -81,6 +83,19 @@ def rouletteWheelWithProbList(probList):
 
 def getEuclideanDistance(vec1, vec2):
     return np.sqrt(np.sum((vec1 - vec2) ** 2))
+
+
+def getListStatics(list):
+    res = ""
+    avg = statistics.mean(list)
+    res += "Average: " + str(avg) + "; "
+    res += "Max: " + str(max(list)) + "; "
+    res += "StdErr: " + str(stderr(list, avg)) + "; "
+    return res
+
+
+def stderr(l, mean):
+    return math.sqrt(sum([(l[i]-mean)**2 for i in range(len(l))])/len(l))
 
 
 if __name__ == '__main__':

@@ -1,3 +1,5 @@
+import os
+
 from Mutator import *
 from SurvivorSelector import *
 from Configuration import *
@@ -99,9 +101,9 @@ class ProDE_Rand1(EA):
 
             # print message
             iterationCount += 1
-            if iterationCount % 50 == 0:
-                print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
-                print("current population:\n" + str(self.population))
+            # if iterationCount % 50 == 0:
+                # print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
+                # print("current population:\n" + str(self.population))
 
 
             # evaluation
@@ -160,9 +162,9 @@ class FastEP(EA):
 
             # print message
             iterationCount += 1
-            if iterationCount % 2 == 0:
-                print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
-                print("current population:\n" + str(self.population))
+            # if iterationCount % 2 == 0:
+                # print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
+                # print("current population:\n" + str(self.population))
 
             # evaluation
             if self.fitness is None:
@@ -172,7 +174,7 @@ class FastEP(EA):
                     break
 
             # mutation
-            print("mutating")
+            # print("mutating")
             newEta = np.zeros((self.populationSize, self.dim))
             newPopulation = np.zeros((self.populationSize, self.dim))
             for i, individual in enumerate(self.population):
@@ -195,18 +197,18 @@ class FastNichingEP(EA):
                  benchmark=CEC2013(1),
                  maxEval=None,
                  populationSize=POPULATION_SIZE,
-                 evolutionTimes=None,
+                 stillIterThreshold=10,
                  nicheRadius=None
                  ):
         self.benchmark = benchmark
-        self.maxEvaluation = benchmark.get_maxfes() if maxEval is None else maxEval
+        self.maxEvaluation = benchmark.get_maxfes()
         self.populationSize = populationSize  # total size
         self.dim = benchmark.get_dimension()
         self.population = None
         self.fitness = None
 
-        self.evolutionTimes = evolutionTimes if evolutionTimes is not None else populationSize//2
-        self.maxEvaluation //= self.evolutionTimes  # divide the totalEvaluation into groups
+        # self.evolutionTimes = evolutionTimes if evolutionTimes is not None else populationSize//2
+        # self.maxEvaluation //= self.evolutionTimes  # divide the totalEvaluation into groups
         self.peakIndividuals = []
         self.eta = None
         if nicheRadius is None:
@@ -221,6 +223,7 @@ class FastNichingEP(EA):
         self.resultPopulation = np.ndarray((0, self.dim))
         self.nichePopulationSize = 1
         self.worstFitness = None
+        self.stillIterThreshold = stillIterThreshold
 
     def getFitness(self, population):
         # skipTimes = 0  # when all niches have been found, used to terminate
@@ -241,27 +244,32 @@ class FastNichingEP(EA):
         return fitness, evaluationTimes
 
     def run(self):
-        for x in range(self.evolutionTimes):
-            print("*"*15 + " Finding Niche " + str(x+1) + " " + "*"*15)
+        evolutionTimes = 0
+        totalEvaluationTimes = 0
+        while totalEvaluationTimes < self.maxEvaluation:
+            evolutionTimes+=1
+            # print("*"*15 + " Finding Niche " + str(x+1) + " " + "*"*15)
 
             self.population = self.getInitialPopulation()
             self.fitness = None
             self.eta = np.ones((self.populationSize, self.dim))
             iterationCount = 0
-            totalEvaluationTimes = 0
+            optimaSameIter = 0
+            lastOptima = None
+            lastOptimaIdx = None
 
             while True:
 
                 # print message
                 iterationCount += 1
-                if iterationCount % 10 == 0:
-                    print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
+                # if iterationCount % 10 == 0:
+                    # print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
                     # print("current population:\n" + str(self.population))
 
                 # evaluation
                 if self.fitness is None:
                     self.fitness, evaluationTimes = self.getFitness(self.population)
-                    if x == 0:
+                    if totalEvaluationTimes == 0:
                         self.worstFitness = np.min(self.fitness)
                     totalEvaluationTimes += evaluationTimes
                     if totalEvaluationTimes > self.maxEvaluation:
@@ -281,9 +289,28 @@ class FastNichingEP(EA):
                     break
                 self.population = roundRobinTournament(self.population, newPopulation,
                                                        self.fitness, newFitness, self.eta, newEta)
-            self.resultPopulation = np.concatenate((self.resultPopulation, self.population[:self.nichePopulationSize]))
-            print("current niche population: " + str(self.population[:self.nichePopulationSize]))
-            print("self.resultPopulation: " + str(self.resultPopulation))
+
+                # check #Iteration can not find better solution
+                currentOptima = np.max(self.fitness)
+                if lastOptima is None:
+                    lastOptima = currentOptima
+                else:
+                    if currentOptima - lastOptima < 0.00001:
+                        optimaSameIter += 1
+                        lastOptima = currentOptima
+                        if optimaSameIter > self.stillIterThreshold:
+                            break
+                    else:
+                        optimaSameIter = 0
+                        lastOptima = currentOptima
+
+            print("optimaSameIter: %d" % optimaSameIter)
+            bestIdx = np.argmax(self.fitness, axis=0)
+            self.resultPopulation = np.concatenate((self.resultPopulation,
+                                                    self.population[bestIdx:bestIdx+1]))
+            # print("current niche population: " + str(self.population[:self.nichePopulationSize]))
+            # print("self.resultPopulation: " + str(self.resultPopulation))
+        print("evolutionTimes: %d" % evolutionTimes)
 
 
 class FitnessSharingFEP(EA):
@@ -305,10 +332,10 @@ class FitnessSharingFEP(EA):
         for i, individual_i in enumerate(populationAll):
             sh_sum = 0
             for j, individual_j in enumerate(populationAll):
-                if i != j:
-                    dist = getEuclideanDistance(individual_i, individual_j)
-                    sh_ij = 1 - (dist/self.shareDist)**self.alpha if dist < self.shareDist else 0
-                    sh_sum += sh_ij
+                # if i != j:
+                dist = getEuclideanDistance(individual_i, individual_j)
+                sh_ij = 1 - (dist/self.shareDist)**self.alpha if dist < self.shareDist else 0
+                sh_sum += sh_ij
             fitnessAll[i] /= sh_sum
             # if i < len(fitness):
             #     fitness[i] /= sh_sum
@@ -326,9 +353,9 @@ class FitnessSharingFEP(EA):
 
             # print message
             iterationCount += 1
-            if iterationCount % 2 == 0:
-                print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
-                print("current population:\n" + str(self.population))
+            # if iterationCount % 2 == 0:
+            #     print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
+            #     print("current population:\n" + str(self.population))
 
             # evaluation
             if self.fitness is None:
@@ -410,24 +437,152 @@ class FastNichingEP_record(EA):
                 evaluationTimes += 1
         return fitness, evaluationTimes
 
-    def run(self):
-        self.startTime = time.time()
+    def run(self, saveFileName):
+        if not os.path.exists(os.getcwd() + r"/Result"):
+            os.mkdir(os.getcwd() + r"/Result")
+        filePath = os.getcwd() + "/Result/" + saveFileName
+        open(filePath, 'w').close()
+        with open(filePath, 'a') as f:
+            self.startTime = time.time()
 
+            overalEvaluation = 0
+            for x in range(self.evolutionTimes):
+
+                self.population = self.getInitialPopulation()
+                self.fitness = None
+                self.eta = np.ones((self.populationSize, self.dim))
+                iterationCount = 0
+                totalEvaluationTimes = 0
+
+                while True:
+
+                    iterationCount += 1
+
+                    # evaluation
+                    if self.fitness is None:
+                        self.fitness, evaluationTimes = self.getFitness(self.population)
+                        if x == 0:
+                            self.worstFitness = np.min(self.fitness)
+                        totalEvaluationTimes += evaluationTimes
+                        if totalEvaluationTimes > self.maxEvaluation:
+                            break
+                        else:
+                            overalEvaluation += evaluationTimes
+
+                    # mutation
+                    newEta = np.zeros((self.populationSize, self.dim))
+                    newPopulation = np.zeros((self.populationSize, self.dim))
+                    for i, individual in enumerate(self.population):
+                        mutant = FEPMutator(individual, i, self.eta, newEta, self.benchmark)
+                        newPopulation[i] = mutant
+
+                    # replacement
+                    newFitness, evaluationTimes = self.getFitness(newPopulation)
+                    totalEvaluationTimes += evaluationTimes
+                    if totalEvaluationTimes > self.maxEvaluation:
+                        break
+                    else:
+                        overalEvaluation += evaluationTimes
+                    self.population = roundRobinTournament(self.population, newPopulation,
+                                                           self.fitness, newFitness, self.eta, newEta)
+                bestIdx = np.argmax(self.fitness, axis=0)
+                self.resultPopulation = np.concatenate((self.resultPopulation,
+                                                        self.population[bestIdx:bestIdx + 1]))
+                # x1	x2	...	xd	=	y1	@	n	t	a
+                foundIndividual = self.population[bestIdx]
+                res = ""
+                for xi in foundIndividual:
+                    res += str(xi) + " "
+                res += "= "
+                res += str(self.fitness[bestIdx]) + " @ " + str(overalEvaluation) + \
+                    " " + str(time.time()-self.startTime) + " 1\n"
+                f.write(res)
+                # self.resultPopulation = np.concatenate((self.resultPopulation, self.population[:self.nichePopulationSize]))
+                # print("current niche population: " + str(self.population[:self.nichePopulationSize]))
+                # print("self.resultPopulation: " + str(self.resultPopulation))
+
+
+def record():
+    for i in range(1, 21):
+        benchmark = CEC2013(i)
+        for roundNum in range(1, 51):
+            ea = FastNichingEP_record(benchmark=benchmark, evolutionTimes=benchmark.get_no_goptima(), maxEval=None)
+            # problem001run001.dat
+            ea.run("problem%.3drun%.3d.dat" % (i, roundNum))
+
+
+
+class FastNichingEP_original(EA):
+
+    def __init__(self,
+                 benchmark=CEC2013(1),
+                 maxEval=None,
+                 populationSize=POPULATION_SIZE,
+                 evolutionTimes=None,
+                 nicheRadius=None
+                 ):
+        self.benchmark = benchmark
+        self.maxEvaluation = benchmark.get_maxfes() if maxEval is None else maxEval
+        self.populationSize = populationSize  # total size
+        self.dim = benchmark.get_dimension()
+        self.population = None
+        self.fitness = None
+
+        self.evolutionTimes = evolutionTimes if evolutionTimes is not None else populationSize//2
+        self.maxEvaluation //= self.evolutionTimes  # divide the totalEvaluation into groups
+        self.peakIndividuals = []
+        self.eta = None
+        if nicheRadius is None:
+            upperBoundVector = np.zeros(self.dim)
+            lowerBoundVector = np.zeros(self.dim)
+            for k in range(self.dim):
+                upperBoundVector[k] = benchmark.get_ubound(k)
+                lowerBoundVector[k] = benchmark.get_lbound(k)
+            self.nicheRadius = getEuclideanDistance(upperBoundVector, lowerBoundVector) / 20
+        else:
+            self.nicheRadius = nicheRadius
+        self.resultPopulation = np.ndarray((0, self.dim))
+        self.nichePopulationSize = 1
+        self.worstFitness = None
+
+    def getFitness(self, population):
+        # skipTimes = 0  # when all niches have been found, used to terminate
+        fitness = np.zeros(len(population))
+        evaluationTimes = 0
+        for i in range(len(population)):
+            inFoundNiche = False
+            for j in range(len(self.resultPopulation)):
+                if getEuclideanDistance(population[i], self.resultPopulation[j]) < self.nicheRadius:
+                    fitness[i] = self.worstFitness
+                    inFoundNiche = True
+                    evaluationTimes += 1
+                    # skipTimes += 1
+                    break
+            if not inFoundNiche:
+                fitness[i] = self.benchmark.evaluate(population[i])
+                evaluationTimes += 1
+        return fitness, evaluationTimes
+
+    def run(self):
+        optimaSameIterList = []
         for x in range(self.evolutionTimes):
-            print("*"*15 + " Finding Niche " + str(x+1) + " " + "*"*15)
+            # print("*"*15 + " Finding Niche " + str(x+1) + " " + "*"*15)
 
             self.population = self.getInitialPopulation()
             self.fitness = None
             self.eta = np.ones((self.populationSize, self.dim))
             iterationCount = 0
             totalEvaluationTimes = 0
+            optimaSameIter = 0
+            lastOptima = None
+            lastOptimaIdx = None
 
             while True:
 
                 # print message
                 iterationCount += 1
-                if iterationCount % 10 == 0:
-                    print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
+                # if iterationCount % 10 == 0:
+                #     print("Iteration: %d, Current Best: %f" % (iterationCount, max(self.fitness)))
                     # print("current population:\n" + str(self.population))
 
                 # evaluation
@@ -438,12 +593,6 @@ class FastNichingEP_record(EA):
                     totalEvaluationTimes += evaluationTimes
                     if totalEvaluationTimes > self.maxEvaluation:
                         break
-
-                # # record
-                # self.currentPopulationInfo = []
-                # for i, individual in enumerate(self.population):
-                #     self.currentPopulationInfo.append((individual, self.fitness[i], self.maxEvaluation *
-                #                                        x + totalEvaluationTimes, time.time() - self.startTime))
 
                 # mutation
                 newEta = np.zeros((self.populationSize, self.dim))
@@ -459,6 +608,25 @@ class FastNichingEP_record(EA):
                     break
                 self.population = roundRobinTournament(self.population, newPopulation,
                                                        self.fitness, newFitness, self.eta, newEta)
+
+                # check #Iteration can not find better solution
+                currentOptima = np.max(self.fitness)
+                if lastOptima is None:
+                    lastOptima = currentOptima
+                else:
+                    if currentOptima - lastOptima < 0.00001:
+                        optimaSameIter += 1
+                        lastOptima = currentOptima
+                    else:
+                        optimaSameIter = 0
+                        lastOptima = currentOptima
+
+            print("optimaSameIter: %d" % optimaSameIter)
+            optimaSameIterList.append(optimaSameIter)
             self.resultPopulation = np.concatenate((self.resultPopulation, self.population[:self.nichePopulationSize]))
-            print("current niche population: " + str(self.population[:self.nichePopulationSize]))
-            print("self.resultPopulation: " + str(self.resultPopulation))
+            # print("current niche population: " + str(self.population[:self.nichePopulationSize]))
+            # print("self.resultPopulation: " + str(self.resultPopulation))
+        print("Average optimaSameIter: %f" % (sum(optimaSameIterList)/len(optimaSameIterList)))
+
+if __name__ == '__main__':
+    record()
