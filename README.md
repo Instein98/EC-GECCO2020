@@ -1,4 +1,77 @@
-# Measurement
+## Run FastNichingEP (dump result file)
+
+In main method of Main.py:
+
+```python
+for i in range(1, 21):
+    benchmark = CEC2013(i)
+    for roundNum in range(1, 51):
+        ea = FastNichingEP_record(benchmark=benchmark)
+        # problem001run001.dat
+        ea.run("problem%.3drun%.3d.dat" % (i, roundNum))
+```
+
+## Run FitnessSharingFEP
+
+```python
+if __name__ == '__main__':
+    np.set_printoptions(suppress=True)
+    benchmarkIdx = 1
+    roundNum = 1
+    benchmark = CEC2013(benchmarkIdx)
+    hitNum = []
+    peakRatio = []
+    costTime = []
+    for round in range(roundNum):
+        startTime = time.time()
+        ea = FitnessSharingFEP(benchmark=benchmark)
+        ea.run()
+        costTime.append(time.time()-startTime)
+        count, seeds = how_many_goptima(ea.resultPopulation, benchmark, accuracy)
+        hitNum.append(count)
+        pr = count / ea.benchmark.get_no_goptima()
+        peakRatio.append(pr)
+        print("Round: %d\nhitNum: current: %s; %s\npeakRatio: current: %s;  %s" %
+              (round, count, getListStatics(hitNum), pr, getListStatics(peakRatio)))
+        print("*****************************************************")
+    print("Benchmark: %d\nAccuracy: %f\nRoundNum: %d\ncostTimeAll: %s\nhitNum: %s\npeakRatio: %s\n"
+              "*****************************************************" %
+              (benchmarkIdx, accuracy, roundNum, sum(costTime),
+               getListStatics(hitNum), getListStatics(peakRatio)))
+```
+
+
+## Run ProDE_Rand1
+
+```python
+if __name__ == '__main__':
+    np.set_printoptions(suppress=True)
+    benchmarkIdx = 1
+    roundNum = 1
+    benchmark = CEC2013(benchmarkIdx)
+    hitNum = []
+    peakRatio = []
+    costTime = []
+    for round in range(roundNum):
+        startTime = time.time()
+        ea = ProDE_Rand1(benchmark=benchmark)
+        ea.run()
+        costTime.append(time.time()-startTime)
+        count, seeds = how_many_goptima(ea.resultPopulation, benchmark, accuracy)
+        hitNum.append(count)
+        pr = count / ea.benchmark.get_no_goptima()
+        peakRatio.append(pr)
+        print("Round: %d\nhitNum: current: %s; %s\npeakRatio: current: %s;  %s" %
+              (round, count, getListStatics(hitNum), pr, getListStatics(peakRatio)))
+        print("*****************************************************")
+    print("Benchmark: %d\nAccuracy: %f\nRoundNum: %d\ncostTimeAll: %s\nhitNum: %s\npeakRatio: %s\n"
+              "*****************************************************" %
+              (benchmarkIdx, accuracy, roundNum, sum(costTime),
+               getListStatics(hitNum), getListStatics(peakRatio)))
+```
+
+
+## Measurement
 
 ### 1. $ \frac{\# DetectedItems}{\#RelevantItems}$(# Detected Peaks / Optimum Found )
 
