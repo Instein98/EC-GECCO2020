@@ -19,25 +19,26 @@ if __name__ == '__main__':
     benchmarkIdx = 1
     roundNum = 1
     benchmark = CEC2013(benchmarkIdx)
-    hitNum = []
-    peakRatio = []
-    costTime = []
-    for round in range(roundNum):
-        startTime = time.time()
-        ea = FitnessSharingFEP(benchmark=benchmark)
-        ea.run()
-        costTime.append(time.time()-startTime)
-        count, seeds = how_many_goptima(ea.resultPopulation, benchmark, accuracy)
-        hitNum.append(count)
-        pr = count / ea.benchmark.get_no_goptima()
-        peakRatio.append(pr)
-        print("Round: %d\nhitNum: current: %s; %s\npeakRatio: current: %s;  %s" %
-              (round, count, getListStatics(hitNum), pr, getListStatics(peakRatio)))
-        print("*****************************************************")
-    print("Benchmark: %d\nAccuracy: %f\nRoundNum: %d\ncostTimeAll: %s\nhitNum: %s\npeakRatio: %s\n"
-              "*****************************************************" %
-              (benchmarkIdx, accuracy, roundNum, sum(costTime),
-               getListStatics(hitNum), getListStatics(peakRatio)))
+    for accuracy in [0.1, 0.01, 0.001, 0.0001, 0.00001]:
+        hitNum = []
+        peakRatio = []
+        costTime = []
+        for round in range(roundNum):
+            startTime = time.time()
+            ea = FitnessSharingFEP(benchmark=benchmark)
+            ea.run()
+            costTime.append(time.time()-startTime)
+            count, seeds = how_many_goptima(ea.resultPopulation, benchmark, accuracy)
+            hitNum.append(count)
+            pr = count / ea.benchmark.get_no_goptima()
+            peakRatio.append(pr)
+            print("Round: %d\nhitNum: current: %s; %s\npeakRatio: current: %s;  %s" %
+                  (round, count, getListStatics(hitNum), pr, getListStatics(peakRatio)))
+            print("*****************************************************")
+        print("Benchmark: %d\nAccuracy: %f\nRoundNum: %d\ncostTimeAll: %s\nhitNum: %s\npeakRatio: %s\n"
+                  "*****************************************************" %
+                  (benchmarkIdx, accuracy, roundNum, sum(costTime),
+                   getListStatics(hitNum), getListStatics(peakRatio)))
 ```
 
 
@@ -49,25 +50,26 @@ if __name__ == '__main__':
     benchmarkIdx = 1
     roundNum = 1
     benchmark = CEC2013(benchmarkIdx)
-    hitNum = []
-    peakRatio = []
-    costTime = []
-    for round in range(roundNum):
-        startTime = time.time()
-        ea = ProDE_Rand1(benchmark=benchmark)
-        ea.run()
-        costTime.append(time.time()-startTime)
-        count, seeds = how_many_goptima(ea.resultPopulation, benchmark, accuracy)
-        hitNum.append(count)
-        pr = count / ea.benchmark.get_no_goptima()
-        peakRatio.append(pr)
-        print("Round: %d\nhitNum: current: %s; %s\npeakRatio: current: %s;  %s" %
-              (round, count, getListStatics(hitNum), pr, getListStatics(peakRatio)))
-        print("*****************************************************")
-    print("Benchmark: %d\nAccuracy: %f\nRoundNum: %d\ncostTimeAll: %s\nhitNum: %s\npeakRatio: %s\n"
-              "*****************************************************" %
-              (benchmarkIdx, accuracy, roundNum, sum(costTime),
-               getListStatics(hitNum), getListStatics(peakRatio)))
+    for accuracy in [0.1, 0.01, 0.001, 0.0001, 0.00001]:
+        hitNum = []
+        peakRatio = []
+        costTime = []
+        for round in range(roundNum):
+            startTime = time.time()
+            ea = ProDE_Rand1(benchmark=benchmark)
+            ea.run()
+            costTime.append(time.time()-startTime)
+            count, seeds = how_many_goptima(ea.resultPopulation, benchmark, accuracy)
+            hitNum.append(count)
+            pr = count / ea.benchmark.get_no_goptima()
+            peakRatio.append(pr)
+            print("Round: %d\nhitNum: current: %s; %s\npeakRatio: current: %s;  %s" %
+                  (round, count, getListStatics(hitNum), pr, getListStatics(peakRatio)))
+            print("*****************************************************")
+        print("Benchmark: %d\nAccuracy: %f\nRoundNum: %d\ncostTimeAll: %s\nhitNum: %s\npeakRatio: %s\n"
+                  "*****************************************************" %
+                  (benchmarkIdx, accuracy, roundNum, sum(costTime),
+                   getListStatics(hitNum), getListStatics(peakRatio)))
 ```
 
 
